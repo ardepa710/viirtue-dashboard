@@ -1,9 +1,28 @@
 import { prisma } from "@/prisma/prisma.config";
+import type {
+  NsActiveCall,
+  NsCdr,
+  CdrParams,
+} from "@/types/ns-api";
 
 const NS_API_BASE_URL = process.env.NS_API_BASE_URL || "https://ns-api.netsapiens.com";
 const NS_API_CLIENT_ID = process.env.NS_API_CLIENT_ID!;
 const NS_API_CLIENT_SECRET = process.env.NS_API_CLIENT_SECRET!;
 const NS_API_SCOPE = process.env.NS_API_SCOPE || "api:read api:write";
+
+/**
+ * Custom error class for NS-API errors
+ */
+export class NSApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public endpoint?: string
+  ) {
+    super(message);
+    this.name = "NSApiError";
+  }
+}
 
 /**
  * NetSapiens API Client
@@ -53,7 +72,7 @@ class NsApiClient {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`NS-API OAuth failed: ${response.status} ${error}`);
+      throw new NSApiError(response.status, `OAuth failed: ${error}`, "/oauth/token");
     }
 
     const data = await response.json();
@@ -67,6 +86,11 @@ class NsApiClient {
         expiresAt,
         scope: data.scope,
       },
+    });
+
+    // Cleanup old tokens
+    await prisma.nsToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
     });
 
     return data.access_token;
@@ -92,8 +116,10 @@ class NsApiClient {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(
-        `NS-API request failed: ${response.status} ${error}`
+      throw new NSApiError(
+        response.status,
+        `Request failed: ${error}`,
+        endpoint
       );
     }
 
@@ -103,8 +129,8 @@ class NsApiClient {
   /**
    * Get active calls
    */
-  async getActiveCalls(): Promise<any[]> {
-    return this.request("/v2/calls");
+  async getActiveCalls(): Promise<NsActiveCall[]> {
+    return this.request<NsActiveCall[]>("/v2/calls");
   }
 
   /**
@@ -124,17 +150,16 @@ class NsApiClient {
   /**
    * Get call detail records
    */
-  async getCDR(params: {
-    startDate?: string;
-    endDate?: string;
-    limit?: number;
-  }): Promise<any[]> {
+  async getCDR(params: CdrParams = {}): Promise<NsCdr[]> {
     const query = new URLSearchParams();
-    if (params.startDate) query.set("start_date", params.startDate);
-    if (params.endDate) query.set("end_date", params.endDate);
+    if (params.start) query.set("start_date", params.start);
+    if (params.end) query.set("end_date", params.end);
     if (params.limit) query.set("limit", params.limit.toString());
+    if (params.user) query.set("user", params.user);
+    if (params.direction) query.set("direction", params.direction);
+    if (params.offset) query.set("offset", params.offset.toString());
 
-    return this.request(`/v2/cdr?${query.toString()}`);
+    return this.request<NsCdr[]>(`/v2/cdr?${query.toString()}`);
   }
 
   /**
