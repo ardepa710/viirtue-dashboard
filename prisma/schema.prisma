@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Dashboard users (internal team only)
+model DashboardUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  name      String
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  preferences UserPreferences?
+  auditLogs   AuditLog[]
+
+  @@map("dashboard_users")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  VIEWER
+}
+
+// User preferences (dark mode, refresh intervals, etc.)
+model UserPreferences {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  darkMode         Boolean @default(true)
+  refreshInterval  Int     @default(30) // seconds
+  defaultView      String  @default("overview")
+  notificationsOn  Boolean @default(true)
+
+  user DashboardUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+// NetSapiens OAuth tokens (cached)
+model NsToken {
+  id           String   @id @default(cuid())
+  accessToken  String   @db.Text
+  tokenType    String   @default("Bearer")
+  expiresAt    DateTime
+  scope        String?
+  createdAt    DateTime @default(now())
+
+  @@map("ns_tokens")
+}
+
+// API response cache with TTLs
+model ApiCache {
+  id         String   @id @default(cuid())
+  cacheKey   String   @unique
+  data       String   @db.Text // JSON stringified
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([cacheKey])
+  @@index([expiresAt])
+  @@map("api_cache")
+}
+
+// Audit log (track dashboard actions + NS-API audit)
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  resource    String?
+  details     String?  @db.Text // JSON stringified
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+
+  user DashboardUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("audit_logs")
+}
