@@ -1,12 +1,16 @@
-import { prisma } from "./prisma.config";
-import bcrypt from "bcryptjs";
+// Load environment variables FIRST (before any imports)
+require("dotenv").config({ path: ".env.local" });
+
+// Now import Prisma (DATABASE_URL is available)
+const { prisma } = require("./prisma.config");
+const bcrypt = require("bcryptjs");
 
 async function main() {
   console.log("🌱 Seeding database...");
 
   // Check if admin user already exists
   const existingAdmin = await prisma.dashboardUser.findUnique({
-    where: { email: "admin@viirtue.local" },
+    where: { email: "admin@viirtue.com" },
   });
 
   if (existingAdmin) {
@@ -15,11 +19,11 @@ async function main() {
   }
 
   // Create admin user
-  const hashedPassword = await bcrypt.hash("Admin1234!", 12);
+  const hashedPassword = await bcrypt.hash("admin123", 12);
 
   const admin = await prisma.dashboardUser.create({
     data: {
-      email: "admin@viirtue.local",
+      email: "admin@viirtue.com",
       password: hashedPassword,
       name: "Admin User",
       role: "ADMIN",
@@ -44,8 +48,8 @@ async function main() {
   });
 
   console.log("\n📝 Login credentials:");
-  console.log("  Email: admin@viirtue.local");
-  console.log("  Password: Admin1234!");
+  console.log("  Email: admin@viirtue.com");
+  console.log("  Password: admin123");
   console.log("\n⚠️  IMPORTANT: Change this password after first login!\n");
 }
 
