@@ -37,14 +37,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             where: { email },
           });
 
-          if (!user) {
-            return null;
-          }
+          // Always run bcrypt to prevent timing attacks
+          // Use dummy hash if user doesn't exist to maintain constant timing
+          const passwordHash = user?.password || "$2a$10$DUMMY_HASH_FOR_TIMING_SAFETY_ONLY";
+          const isValid = await compare(password, passwordHash);
 
-          // Verify password
-          const isValid = await compare(password, user.password);
-
-          if (!isValid) {
+          if (!user || !isValid) {
             return null;
           }
 
